@@ -88,6 +88,10 @@ class FacePositionView(context: Context, attrs: AttributeSet?) : View(context, a
                 callback?.invoke(false)
             }
         }
+
+        if(facesBounds.isEmpty()){
+            callback?.invoke(false)
+        }
     }
 
     fun setShowOutline(show: Boolean) {
