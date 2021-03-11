@@ -3,12 +3,15 @@ package com.kryptkode.facedetection
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.util.Size
+import android.widget.Toast
 import androidx.core.view.isVisible
 import com.kryptkode.facedetection.databinding.ActivityMainBinding
 import com.kryptkode.facedetection.detection.FaceDetector
 import com.kryptkode.facedetection.detection.Frame
 import com.kryptkode.facedetection.detection.LensFacing
-import com.otaliastudios.cameraview.Facing
+import com.otaliastudios.cameraview.CameraListener
+import com.otaliastudios.cameraview.PictureResult
+import com.otaliastudios.cameraview.controls.Facing
 
 class MainActivity : AppCompatActivity() {
 
@@ -20,18 +23,8 @@ class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         val lensFacing =
-                savedInstanceState?.getSerializable(KEY_LENS_FACING) as Facing? ?: Facing.FRONT
+            savedInstanceState?.getSerializable(KEY_LENS_FACING) as Facing? ?: Facing.FRONT
         setupCamera(lensFacing)
-    }
-
-    override fun onResume() {
-        super.onResume()
-        binding.viewfinder.start()
-    }
-
-    override fun onPause() {
-        super.onPause()
-        binding.viewfinder.stop()
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -39,34 +32,36 @@ class MainActivity : AppCompatActivity() {
         super.onSaveInstanceState(outState)
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        binding.viewfinder.destroy()
-    }
-
     private fun setupCamera(lensFacing: Facing) {
         binding.facePosition.setOnOutLineShownListener {
             binding.captureImageBtn.isVisible = it
         }
 
+        binding.viewfinder.setLifecycleOwner(this)
+        binding.viewfinder.addCameraListener(object : CameraListener() {
+            override fun onPictureTaken(result: PictureResult) {
+                Toast.makeText(this@MainActivity, "Picture captured", Toast.LENGTH_SHORT).show()
+            }
+        })
+
         binding.captureImageBtn.setOnClickListener {
-            binding.viewfinder.capturePicture()
+            if(binding.viewfinder.isTakingPicture.not()){
+                binding.viewfinder.takePicture()
+            }
         }
 
         val faceDetector = FaceDetector(binding.facePosition)
         binding.viewfinder.facing = lensFacing
         binding.viewfinder.addFrameProcessor {
-            if(it.size != null){
-                faceDetector.process(
-                        Frame(
-                                data = it.data,
-                                rotation = it.rotation,
-                                size = Size(it.size.width, it.size.height),
-                                format = it.format,
-                                lensFacing = if (binding.viewfinder.facing == Facing.BACK) LensFacing.BACK else LensFacing.FRONT
-                        )
+            faceDetector.process(
+                Frame(
+                    data = it.data,
+                    rotation = it.rotation,
+                    size = Size(it.size.width, it.size.height),
+                    format = it.format,
+                    lensFacing = if (binding.viewfinder.facing == Facing.BACK) LensFacing.BACK else LensFacing.FRONT
                 )
-            }
+            )
         }
     }
 

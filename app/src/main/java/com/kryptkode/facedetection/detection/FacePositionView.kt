@@ -78,7 +78,7 @@ class FacePositionView(context: Context, attrs: AttributeSet?) : View(context, a
         canvas.drawPath(path, backgroundPaint)
 
         facesBounds.forEach { faceBounds ->
-            if (ovalRect.contains(faceBounds.box)) {
+            if (ovalRect.inflate(DEFAULT_MARGIN).contains(faceBounds.box)) {
                 canvas.drawOval(
                         ovalRect,
                         outlinePaint
@@ -107,6 +107,9 @@ class FacePositionView(context: Context, attrs: AttributeSet?) : View(context, a
         callback = listener
     }
 
+    companion object {
+        private const val DEFAULT_MARGIN = 50f
+    }
 
 }
 
@@ -120,5 +123,16 @@ fun fromCenter(center: PointF, width: Float, height: Float) =
                 center.y + height / 2
         )
 
+/**
+Returns a new rectangle with edges moved outwards by the given delta.
+ */
+fun RectF.inflate(delta: Float): RectF {
+    return RectF(
+        left - delta,
+        top - delta,
+        right + delta,
+        bottom + delta
+    )
+}
 @ColorInt
 fun @receiver:ColorRes Int.toColorInt(context: Context): Int = ContextCompat.getColor(context, this)
