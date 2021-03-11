@@ -1,9 +1,9 @@
 package com.kryptkode.facedetection.detection
 
+import android.annotation.SuppressLint
 import android.graphics.RectF
 import android.os.Looper
 import android.util.Log
-import android.view.View
 import androidx.annotation.GuardedBy
 import com.google.android.gms.common.util.concurrent.HandlerExecutor
 import com.google.mlkit.vision.common.InputImage
@@ -44,17 +44,18 @@ class FaceDetector(
     private var isProcessing = false
 
     init {
-        facePositionView.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
-            override fun onViewAttachedToWindow(view: View?) {
-                faceDetectionExecutor = Executors.newSingleThreadExecutor()
-            }
-
-            override fun onViewDetachedFromWindow(view: View?) {
-                if (::faceDetectionExecutor.isInitialized) {
-                    faceDetectionExecutor.shutdown()
-                }
-            }
-        })
+        faceDetectionExecutor = Executors.newSingleThreadExecutor()
+//        facePositionView.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
+//            override fun onViewAttachedToWindow(view: View?) {
+//
+//            }
+//
+//            override fun onViewDetachedFromWindow(view: View?) {
+//                if (::faceDetectionExecutor.isInitialized) {
+//                    faceDetectionExecutor.shutdown()
+//                }
+//            }
+//        })
     }
 
     /** Sets a listener to receive face detection result callbacks. */
@@ -78,20 +79,25 @@ class FaceDetector(
                         )
                     onError(exception)
                 } else {
+                    Log.e(TAG, "process: ")
                     faceDetectionExecutor.execute { frame.detectFaces() }
                 }
             }
         }
     }
 
+    @SuppressLint("UnsafeExperimentalUsageError")
     private fun Frame.detectFaces() {
-        val data = data ?: return
-        val inputImage = InputImage.fromByteArray(data, size.width, size.height, rotation, format)
+        val image = data.image ?: return
+        Log.i(TAG, "detectFaces: $format")
+        val inputImage = InputImage.fromMediaImage(image, rotation)
         mlkitFaceDetector.process(inputImage)
             .addOnSuccessListener { faces ->
                 synchronized(lock) {
                     isProcessing = false
                 }
+
+                Log.e(TAG, "detectFaces: $faces")
 
                 // Correct the detected faces so that they're correctly rendered on the UI, then
                 // pass them to [faceBoundsOverlay] to be drawn.
@@ -105,6 +111,8 @@ class FaceDetector(
                     isProcessing = false
                 }
                 onError(exception)
+            }.addOnCompleteListener {
+                data.close()
             }
     }
 

@@ -7,6 +7,8 @@ import android.view.View
 import androidx.annotation.ColorInt
 import androidx.annotation.ColorRes
 import androidx.core.content.ContextCompat
+import androidx.core.graphics.toRect
+import androidx.vectordrawable.graphics.drawable.VectorDrawableCompat
 import com.kryptkode.facedetection.R
 
 class FacePositionView(context: Context, attrs: AttributeSet?) : View(context, attrs) {
@@ -25,24 +27,11 @@ class FacePositionView(context: Context, attrs: AttributeSet?) : View(context, a
         color = Color.parseColor("#BA000000")
     }
 
-    private var showOutline = false
     private var callback: ((Boolean) -> Unit)? = null
 
     private val facesBounds = mutableListOf<FaceBounds>()
-    private val anchorPaint = Paint()
-    private val idPaint = Paint()
-    private val boundsPaint = Paint()
+    private val outlineDrawable = VectorDrawableCompat.create(resources, R.drawable.ic_border, null)
 
-    init {
-        anchorPaint.color = ContextCompat.getColor(context, android.R.color.holo_blue_dark)
-
-        idPaint.color = ContextCompat.getColor(context, android.R.color.holo_blue_dark)
-        idPaint.textSize = 40f
-
-        boundsPaint.style = Paint.Style.STROKE
-        boundsPaint.color = ContextCompat.getColor(context, android.R.color.holo_blue_dark)
-        boundsPaint.strokeWidth = 4f
-    }
 
     internal fun updateFaces(bounds: List<FaceBounds>) {
         facesBounds.clear()
@@ -77,8 +66,11 @@ class FacePositionView(context: Context, attrs: AttributeSet?) : View(context, a
 
         canvas.drawPath(path, backgroundPaint)
 
+
         facesBounds.forEach { faceBounds ->
             if (ovalRect.contains(faceBounds.box)) {
+//                outlineDrawable?.bounds = ovalRect.toRect()
+//                outlineDrawable?.draw(canvas)
                 canvas.drawOval(
                         ovalRect,
                         outlinePaint
@@ -94,10 +86,6 @@ class FacePositionView(context: Context, attrs: AttributeSet?) : View(context, a
         }
     }
 
-    fun setShowOutline(show: Boolean) {
-        showOutline = show
-        invalidate()
-    }
 
     fun isWithinOutline(rectF: RectF): Boolean {
         return ovalRect.contains(rectF)
