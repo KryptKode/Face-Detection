@@ -40,8 +40,9 @@ class FacePositionView(context: Context, attrs: AttributeSet?) : View(context, a
         outlineMatrix.reset()
         val scale = R.dimen.stroke_scale.resToPx(context)
         outlineMatrix.setScale(scale, scale)
-        backgroundPath.transform(outlineMatrix)
         outlinePath.transform(outlineMatrix)
+        backgroundPath.transform(outlineMatrix)
+        backgroundPath.fillType = Path.FillType.INVERSE_EVEN_ODD
     }
 
     internal fun updateFaces(bounds: List<FaceBounds>) {
@@ -54,20 +55,20 @@ class FacePositionView(context: Context, attrs: AttributeSet?) : View(context, a
         super.onDraw(canvas)
 
         backgroundPath.computeBounds(outlineBounds, true)
+
         backgroundPath.offset(
-            (width / 2) - outlineBounds.centerX(),
-            (height / 2) - outlineBounds.centerY()
+                (width / 2) - outlineBounds.centerX(),
+                (height / 2) - outlineBounds.centerY()
         )
-
-        outlinePath.computeBounds(outlineBounds, true)
-        outlinePath.offset(
-            (width / 2) - outlineBounds.centerX(),
-            (height / 2) - outlineBounds.centerY()
-        )
-
-        backgroundPath.fillType = Path.FillType.INVERSE_EVEN_ODD
 
         canvas.drawPath(backgroundPath, backgroundPaint)
+
+        outlinePath.computeBounds(outlineBounds, true)
+
+        outlinePath.offset(
+                (width / 2) - outlineBounds.centerX(),
+                (height / 2) - outlineBounds.centerY()
+        )
 
         facesBounds.forEach { faceBounds ->
             if (outlineBounds.contains(faceBounds.box)) {
