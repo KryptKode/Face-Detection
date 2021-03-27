@@ -17,6 +17,8 @@ import com.kryptkode.facedetection.detection.FaceBounds
 import com.kryptkode.facedetection.detection.FaceDetector
 import com.kryptkode.facedetection.detection.Frame
 import com.kryptkode.facedetection.detection.LensFacing
+import com.kryptkode.facedetection.utils.BitmapUtils
+import com.kryptkode.facedetection.utils.BitmapUtils.mapRect
 import com.otaliastudios.cameraview.CameraListener
 import com.otaliastudios.cameraview.PictureResult
 import com.otaliastudios.cameraview.controls.Facing
@@ -58,7 +60,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun initCamera(){
+    private fun initCamera() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
         setupCamera()
@@ -84,9 +86,28 @@ class MainActivity : AppCompatActivity() {
         binding.viewfinder.setLifecycleOwner(this)
         binding.viewfinder.addCameraListener(object : CameraListener() {
             override fun onPictureTaken(result: PictureResult) {
-                PictureTakenActivity.pictureResult = result
-                binding.captureImageBtn.isEnabled = true
-                startActivity(PictureTakenActivity.getStartIntent(this@MainActivity))
+                result.toBitmap {
+                    if (it == null) {
+                        Toast.makeText(
+                            this@MainActivity,
+                            "Error while converting to bitmap",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    } else {
+                        val cropped = BitmapUtils.cropBitmapHandleOOMs(
+                            it,
+                            it.mapRect(
+                                binding.facePosition.getFaceBounds(),
+                                binding.facePosition.width,
+                                binding.facePosition.height,
+                            )
+                        )
+                        Log.e(TAG, "cropped image: $cropped")
+                        PictureTakenActivity.pictureResult = cropped.bitmap
+                        binding.captureImageBtn.isEnabled = true
+                        startActivity(PictureTakenActivity.getStartIntent(this@MainActivity))
+                    }
+                }
             }
         })
 
