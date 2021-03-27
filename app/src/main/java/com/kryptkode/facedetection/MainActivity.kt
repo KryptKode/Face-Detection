@@ -4,13 +4,16 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import android.util.Size
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.core.view.isGone
 import androidx.core.view.isVisible
 import com.kryptkode.facedetection.databinding.ActivityMainBinding
+import com.kryptkode.facedetection.detection.FaceBounds
 import com.kryptkode.facedetection.detection.FaceDetector
 import com.kryptkode.facedetection.detection.Frame
 import com.kryptkode.facedetection.detection.LensFacing
@@ -67,10 +70,17 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupCamera() {
+        binding.captureImageBtn.isGone = true
+
         binding.facePosition.setOnOutLineShownListener {
-            binding.captureImageBtn.isVisible = it
+            binding.cameraDisplayText.isVisible = it
         }
 
+        binding.captureImageBtn.setOnClickListener {
+            takePicture()
+        }
+
+        val faceDetector = FaceDetector(binding.facePosition)
         binding.viewfinder.setLifecycleOwner(this)
         binding.viewfinder.addCameraListener(object : CameraListener() {
             override fun onPictureTaken(result: PictureResult) {
@@ -80,20 +90,44 @@ class MainActivity : AppCompatActivity() {
             }
         })
 
-        binding.captureImageBtn.setOnClickListener {
-            if(binding.viewfinder.isTakingPicture.not()){
-                binding.captureImageBtn.isEnabled = false
-                binding.viewfinder.takePicture()
-            }
-        }
 
-        val faceDetector = FaceDetector(binding.facePosition)
+        faceDetector.setonFaceDetectionFailureListener(object :
+            FaceDetector.FaceDetectionResultListener {
+
+            override fun blinkSlowly() {
+                binding.cameraDisplayText.text = getString(R.string.blink_slowly)
+            }
+
+            override fun takePicture() {
+                this@MainActivity.takePicture()
+            }
+
+            override fun onFailure(exception: Exception) {
+                Log.e(TAG, "onFailure: ", exception)
+            }
+
+            override fun onSuccess(faceBounds: List<FaceBounds>) {
+
+            }
+
+            override fun smile() {
+                binding.cameraDisplayText.text = getString(R.string.smile_msg)
+            }
+
+            override fun smileOO() {
+                binding.cameraDisplayText.text = getString(R.string.smile_oo_msg)
+            }
+
+            override fun blink() {
+                binding.cameraDisplayText.text = getString(R.string.blink_when_you_re_ready)
+            }
+        })
         binding.viewfinder.facing = Facing.FRONT
         binding.viewfinder.addFrameProcessor {
             faceDetector.process(
                 Frame(
-                    data = it.data,
-                    rotation = it.rotation,
+                    data = it.getData(),
+                    rotation = it.rotationToUser,
                     size = Size(it.size.width, it.size.height),
                     format = it.format,
                     lensFacing = if (binding.viewfinder.facing == Facing.BACK) LensFacing.BACK else LensFacing.FRONT
@@ -102,7 +136,14 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun takePicture() {
+        binding.captureImageBtn.isEnabled = false
+        binding.viewfinder.takePicture()
+        binding.cameraDisplayText.text = getString(R.string.camera_capturing)
+    }
+
     companion object {
+        private const val TAG = "MainActivity"
         private const val KEY_LENS_FACING = "key-lens-facing"
         private const val FOLDER = "FaceRecognition"
     }

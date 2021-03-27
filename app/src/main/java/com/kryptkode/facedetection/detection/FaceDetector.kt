@@ -1,5 +1,6 @@
 package com.kryptkode.facedetection.detection
 
+import android.graphics.Rect
 import android.graphics.RectF
 import android.os.Looper
 import android.util.Log
@@ -28,8 +29,11 @@ class FaceDetector(
             .build()
     )
 
+    private val detectedFaces = mutableMapOf<Int, String>()
+    private var smiled = false
+
     /** Listener that gets notified when a face detection result is ready. */
-    private var onFaceDetectionResultListener: OnFaceDetectionResultListener? = null
+    private var listener: FaceDetectionResultListener? = null
 
     /** [Executor] used to run the face detection on a background thread.  */
     private lateinit var faceDetectionExecutor: ExecutorService
@@ -42,6 +46,7 @@ class FaceDetector(
 
     @GuardedBy("lock")
     private var isProcessing = false
+    var faceBounds = Rect()
 
     init {
         facePositionView.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
@@ -58,8 +63,8 @@ class FaceDetector(
     }
 
     /** Sets a listener to receive face detection result callbacks. */
-    fun setonFaceDetectionFailureListener(listener: OnFaceDetectionResultListener) {
-        onFaceDetectionResultListener = listener
+    fun setonFaceDetectionFailureListener(listener: FaceDetectionResultListener) {
+        this.listener = listener
     }
 
     /**
@@ -98,6 +103,12 @@ class FaceDetector(
                 val faceBounds = faces.map { face -> face.toFaceBounds(this) }
                 mainExecutor.execute {
                     facePositionView.updateFaces(faceBounds)
+                    if (facePositionView.isWithinBounds()) {
+                        faces.detectBlinking()
+                    } else {
+                        smiled = false
+                        detectedFaces.clear()
+                    }
                 }
             }
             .addOnFailureListener { exception ->
@@ -124,6 +135,7 @@ class FaceDetector(
         // Since the analyzed image (frame) probably has a different resolution (width and height)
         // compared to the overlay view, we compute by how much we have to scale the bounding box
         // so that it is displayed correctly on the overlay.
+
         val scaleX = facePositionView.width.toFloat() / width
         val scaleY = facePositionView.height.toFloat() / height
 
@@ -148,15 +160,137 @@ class FaceDetector(
     }
 
     private fun onError(exception: Exception) {
-        onFaceDetectionResultListener?.onFailure(exception)
+        listener?.onFailure(exception)
         Log.e(TAG, "An error occurred while running a face detection", exception)
+    }
+
+    private fun List<Face>.detectBlinking() {
+        forEach { face ->
+            face.detectBlinkingThenTakePicture()
+        }
+    }
+
+    private fun Face.isLeftEyeOpen(): Boolean {
+        val probability = leftEyeOpenProbability
+        return (probability != null &&
+                probability >= MAXIMUM_EYE_OPEN_CONFIDENCE)
+    }
+
+    private fun Face.isLeftEyeClosed(): Boolean {
+        val probability = leftEyeOpenProbability
+        return (probability != null &&
+                probability <= MINIMUM_EYE_OPEN_CONFIDENCE)
+    }
+
+    private fun Face.isRightEyeOpen(): Boolean {
+        val probability = rightEyeOpenProbability
+        return (probability != null &&
+                probability >= MAXIMUM_EYE_OPEN_CONFIDENCE)
+    }
+
+    private fun Face.isRightEyeClosed(): Boolean {
+        val probability = rightEyeOpenProbability
+        return (probability != null &&
+                probability <= MINIMUM_EYE_OPEN_CONFIDENCE)
+    }
+
+    private fun Face.areEyesOpen(): Boolean {
+        return isLeftEyeOpen() && isRightEyeOpen()
+    }
+
+    private fun Face.areEyesClosed(): Boolean {
+        return isLeftEyeClosed() && isRightEyeClosed()
+    }
+
+    private fun Face.isSmilingFace(): Boolean {
+        val probability = smilingProbability
+        return (probability != null &&
+                probability >= MAXIMUM_SMILING_CONFIDENCE)
+    }
+
+//    private fun isBlinking(history: String): Boolean {
+//        return BLINKING_PATTERN in history
+//    }
+
+    private fun isBlinking(history: String): Boolean {
+        for (i in 2 downTo 0) {
+            val pattern = "11" + "0".repeat(i + 1) + "1111"
+            if (pattern in history) {
+                return true
+            }
+        }
+        return false
+    }
+
+    private fun Face.detectSmiling(): Boolean {
+        val faceId = trackingId
+        if (faceId != null) {
+            if (detectedFaces.containsKey(faceId)) {
+                if (isSmilingFace()) {
+                    smiled = true
+                    listener?.blink()
+                    return true
+                } else {
+                    listener?.smileOO()
+                }
+            } else {
+                detectedFaces.clear()
+                detectedFaces[faceId] = "1"
+                listener?.smile()
+            }
+        }
+
+        return false
+    }
+
+    private fun Face.detectBlinkingThenTakePicture() {
+        val faceId = trackingId
+        if (faceId != null) {
+            var eyeStatus = "1" // we suppose the eyes are open
+
+            val leftEyeOpenProbability = leftEyeOpenProbability
+            val rightEyeOpenProbability = rightEyeOpenProbability
+
+            if (leftEyeOpenProbability != null && rightEyeOpenProbability != null) {
+                if (areEyesClosed()) {
+                    Log.e(
+                        TAG,
+                        "detectBlinkingThenTakePicture: left: $leftEyeOpenProbability -- right: $rightEyeOpenProbability"
+                    )
+                    eyeStatus = "0"
+                } else if ((leftEyeOpenProbability >= MINIMUM_EYE_OPEN_CONFIDENCE && leftEyeOpenProbability < MAXIMUM_EYE_OPEN_CONFIDENCE) ||
+                    rightEyeOpenProbability >= MINIMUM_EYE_OPEN_CONFIDENCE && rightEyeOpenProbability < MAXIMUM_EYE_OPEN_CONFIDENCE
+                ) {
+                    listener?.blinkSlowly()
+                }
+            }
+
+            if (detectedFaces.containsKey(faceId)) {
+                var currentVal = detectedFaces[faceId]
+                currentVal += eyeStatus
+                detectedFaces[faceId] = currentVal!!
+            } else {
+                detectedFaces.clear()
+                detectedFaces[faceId] = eyeStatus
+            }
+
+            val history = detectedFaces[faceId]!!
+
+            if (history.length >= BLINKING_THRESHOLD && isBlinking(history) && areEyesOpen()) {
+                faceBounds = boundingBox
+                listener?.takePicture()
+                detectedFaces.clear()
+            }
+
+            Log.e(TAG, "detectBlinking: $history")
+        }
     }
 
     /**
      * Interface containing callbacks that are invoked when the face detection process succeeds or
      * fails.
      */
-    interface OnFaceDetectionResultListener {
+    interface FaceDetectionResultListener {
         /**
          * Signals that the face detection process has successfully completed for a camera frame.
          * It also provides the result of the face detection for further potential processing.
@@ -172,10 +306,22 @@ class FaceDetector(
          * frame.
          */
         fun onFailure(exception: Exception) {}
+
+        fun blinkSlowly() {}
+        fun smile() {}
+        fun smileOO() {}
+        fun takePicture() {}
+        fun blink() {}
+
     }
 
     companion object {
         private const val TAG = "FaceDetector"
-        private const val MIN_FACE_SIZE = 0.15F
+        private const val MIN_FACE_SIZE = 0.3f
+        private const val MINIMUM_EYE_OPEN_CONFIDENCE = 0.1
+        private const val MAXIMUM_EYE_OPEN_CONFIDENCE = 0.6
+        private const val MAXIMUM_SMILING_CONFIDENCE = 0.7
+        private const val BLINKING_PATTERN = "1101111"
+        private const val BLINKING_THRESHOLD = 6
     }
 }

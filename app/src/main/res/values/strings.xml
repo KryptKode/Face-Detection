@@ -1,3 +1,8 @@
 <resources>
     <string name="app_name">Face detection 😭</string>
+    <string name="blink_when_you_re_ready">Blink when you\'re ready</string>
+    <string name="camera_capturing">Capturing, don\'t move…</string>
+    <string name="blink_slowly">Blink slowly</string>
+    <string name="smile_msg">Smile for the camera</string>
+    <string name="smile_oo_msg">C\'mon you gotta smile</string>
 </resources>
