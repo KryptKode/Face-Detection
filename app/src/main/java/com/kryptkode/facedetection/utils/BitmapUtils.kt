@@ -9,7 +9,6 @@ import androidx.core.graphics.toRect
 object BitmapUtils {
 
     fun cropBitmapHandleOOMs(bitmap: Bitmap, rect: Rect): BitmapSampled {
-
         var scale = 1
         while (true) {
             try {
@@ -29,12 +28,16 @@ object BitmapUtils {
     }
 
     fun cropBitmap(bitmap: Bitmap, rect: Rect, scale: Float = 1f): Bitmap {
+        val matrix = Matrix()
+        matrix.postScale(-scale, scale) //required to flip the image horizontally
         return Bitmap.createBitmap(
             bitmap,
             rect.left,
             rect.top,
             rect.width(),
-            rect.height()
+            rect.height(),
+            matrix,
+            true
         )
     }
 
